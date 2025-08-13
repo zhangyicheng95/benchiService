@@ -67,6 +67,33 @@ function removeDuplicatesByVehicleId(rows) {
   return uniqueRows;
 }
 
+// 判断是否仅返回当日数据：仅当查询参数 any=1 时
+function shouldReturnTodayOnly(req) {
+  return !!(req && req.query && req.query.any === '1');
+}
+
+// 生成最近N天的日期数组（YYYY-MM-DD），从旧到新
+function generateLastNDates(days) {
+  const result = [];
+  for (let i = days - 1; i >= 0; i--) {
+    const d = new Date(Date.now() - i * 24 * 60 * 60 * 1000);
+    result.push(new Date(d).toISOString().split('T')[0]);
+  }
+  return result;
+}
+
+// 条形图默认数据（仅当天，value为0）
+function defaultBarData() {
+  const today = new Date().toISOString().split('T')[0];
+  return [{ name: today, value: 0 }];
+}
+
+// 班次条形图默认数据（仅当天，value1/value2为0）
+function defaultBarShiftData() {
+  const today = new Date().toISOString().split('T')[0];
+  return [{ name: today, value1: 0, value2: 0 }];
+}
+
 // 获取结果汇总
 router.get('/api/statistic', (req, res) => {
   try {
@@ -102,19 +129,25 @@ router.get('/api/statistic', (req, res) => {
           const today = new Date().toISOString().split('T')[0];
           const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
+          // 判断是否仅返回当日数据
+          const isTodayOnly = shouldReturnTodayOnly(req);
+          const baseRows = isTodayOnly
+            ? uniqueRows.filter(row => row.datetime && new Date(row.datetime).toISOString().split('T')[0] === today)
+            : uniqueRows;
+
           // 计算今日数据
-          const todayData = uniqueRows.filter(row => row.datetime && row.datetime.startsWith(today));
+          const todayData = baseRows.filter(row => row.datetime && row.datetime.startsWith(today));
           const todayCount = todayData.length;
 
           // 计算近七日数据
-          const weekData = uniqueRows.filter(row => row.datetime && row.datetime >= sevenDaysAgo);
+          const weekData = baseRows.filter(row => row.datetime && row.datetime >= sevenDaysAgo);
           const weekCount = weekData.length;
 
           // 计算总计数据
-          const totalCount = uniqueRows.length;
+          const totalCount = baseRows.length;
 
           // 获取所有不同的车辆型号
-          const vehicleModels = [...new Set(uniqueRows.map(row => row.carType).filter(Boolean))];
+          const vehicleModels = [...new Set(baseRows.map(row => row.carType).filter(Boolean))];
           const currentModel = vehicleModels[0] || 'V206';
 
           res.json({ todayCount, weekCount, totalCount: `${Math.floor(totalCount / 1000)} 千`, currentModel });
@@ -165,7 +198,12 @@ router.get('/api/barOK', (req, res) => {
           const today = new Date().toISOString().split('T')[0];
           const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
-          const result = uniqueRows
+          const isTodayOnly = shouldReturnTodayOnly(req);
+          const baseRows = isTodayOnly
+            ? uniqueRows.filter(row => row.datetime && new Date(row.datetime).toISOString().split('T')[0] === today)
+            : uniqueRows;
+
+          let result = baseRows
             .filter(row => row.result === 'OK')
             .reduce((acc, row) => {
               const date = row.datetime ? new Date(row.datetime).toISOString().split('T')[0] : today;
@@ -179,6 +217,10 @@ router.get('/api/barOK', (req, res) => {
             }, [])
             .sort((a, b) => new Date(b.name) - new Date(a.name))
             .slice(0, 7);
+
+          if (!result || result.length === 0) {
+            result = defaultBarData();
+          }
 
           res.json(result);
           // res.json(results);
@@ -227,7 +269,12 @@ router.get('/api/barNG', (req, res) => {
           // 计算统计数据
           const today = new Date().toISOString().split('T')[0];
 
-          res.json(uniqueRows
+          const isTodayOnly = shouldReturnTodayOnly(req);
+          const baseRows = isTodayOnly
+            ? uniqueRows.filter(row => row.datetime && new Date(row.datetime).toISOString().split('T')[0] === today)
+            : uniqueRows;
+
+          let result = baseRows
             .filter(row => row.result === 'NG')
             .reduce((acc, row) => {
               const date = row.datetime ? new Date(row.datetime).toISOString().split('T')[0] : today;
@@ -240,7 +287,13 @@ router.get('/api/barNG', (req, res) => {
               return acc;
             }, [])
             .sort((a, b) => new Date(b.name) - new Date(a.name))
-            .slice(0, 7));
+            .slice(0, 7);
+
+          if (!result || result.length === 0) {
+            result = defaultBarData();
+          }
+
+          res.json(result);
           // res.json(results);
         })
         .catch(error => {
@@ -288,7 +341,12 @@ router.get('/api/pieALL', (req, res) => {
           const today = new Date().toISOString().split('T')[0];
           const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
-          res.json(uniqueRows
+          const isTodayOnly = shouldReturnTodayOnly(req);
+          const baseRows = isTodayOnly
+            ? uniqueRows.filter(row => row.datetime && new Date(row.datetime).toISOString().split('T')[0] === today)
+            : uniqueRows;
+
+          let result = baseRows
             .filter(row => row.result === 'NG')
             .reduce((acc, row) => {
               const defect = row.errtype || '未知缺陷';
@@ -299,7 +357,13 @@ router.get('/api/pieALL', (req, res) => {
                 acc.push({ name: defect, value: 1 });
               }
               return acc;
-            }, []));
+            }, []);
+
+          if (!result || result.length === 0) {
+            result = [];
+          }
+
+          res.json(result);
         })
         .catch(error => {
           console.error('查询数据失败:', error);
@@ -347,7 +411,13 @@ router.get('/api/pieWEEK', (req, res) => {
           const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
           console.log(JSON.stringify(uniqueRows
             .filter(row => row.result === 'NG' && row.datetime && row.datetime >= sevenDaysAgo)))
-          res.json(uniqueRows
+
+          const isTodayOnly = shouldReturnTodayOnly(req);
+          const baseRows = isTodayOnly
+            ? uniqueRows.filter(row => row.datetime && new Date(row.datetime).toISOString().split('T')[0] === today)
+            : uniqueRows;
+
+          let result = baseRows
             .filter(row => row.result === 'NG' && row.datetime && row.datetime >= sevenDaysAgo)
             .reduce((acc, row) => {
               const defect = row.errtype || '未知缺陷';
@@ -358,7 +428,13 @@ router.get('/api/pieWEEK', (req, res) => {
                 acc.push({ name: defect, value: 1 });
               }
               return acc;
-            }, []));
+            }, []);
+
+          if (!result || result.length === 0) {
+            result = [{ name: '未知缺陷', value: 0 }];
+          }
+
+          res.json(result);
         })
         .catch(error => {
           console.error('查询数据失败:', error);
@@ -402,24 +478,35 @@ router.get('/api/line', (req, res) => {
           const uniqueRows = removeDuplicatesByVehicleId(allRows);
 
           // 构建返回数据
-          const responseData = {
-            line: uniqueRows
-              .filter(row => row.result === 'NG')
-              .reduce((acc, row) => {
-                const errtype = row.errtype || '未知缺陷';
-                const existing = acc.find(item => item.name === errtype);
-                if (existing) {
-                  existing.value++;
-                } else {
-                  acc.push({ name: errtype, value: 1 });
-                }
-                return acc;
-              }, [])
-              .sort((a, b) => b.value - a.value)
-              .slice(0, 5)
-          };
+          const today = new Date().toISOString().split('T')[0];
+          const isTodayOnly = shouldReturnTodayOnly(req);
+          const baseRows = isTodayOnly
+            ? uniqueRows.filter(row => row.datetime && new Date(row.datetime).toISOString().split('T')[0] === today)
+            : uniqueRows;
 
-          res.json(responseData.line);
+          let line = baseRows
+            .filter(row => row.result === 'NG')
+            .reduce((acc, row) => {
+              const errtype = row.errtype || '未知缺陷';
+              const existing = acc.find(item => item.name === errtype);
+              if (existing) {
+                existing.value++;
+              } else {
+                acc.push({ name: errtype, value: 1 });
+              }
+              return acc;
+            }, [])
+            .sort((a, b) => b.value - a.value)
+            .slice(0, 5);
+
+          if (!line || line.length === 0) {
+            line = [];
+          }
+
+          // 最终保证按 value 由高到低排序
+          line = line.sort((a, b) => b.value - a.value);
+
+          res.json(line);
         })
         .catch(error => {
           console.error('查询数据失败:', error);
@@ -448,7 +535,7 @@ router.get('/api/barShiftOK', (req, res) => {
           db.all(`SELECT * FROM "${table.name}"`, [], (err, rows) => {
             if (err) {
               reject(err);
-            } else {
+              } else {
               resolve(rows);
             }
           });
@@ -474,8 +561,13 @@ router.get('/api/barShiftOK', (req, res) => {
           // 计算统计数据
           const today = new Date().toISOString().split('T')[0];
 
+          const isTodayOnly = shouldReturnTodayOnly(req);
+          const baseRows = isTodayOnly
+            ? uniqueRows.filter(row => row.datetime && new Date(row.datetime).toISOString().split('T')[0] === today)
+            : uniqueRows;
+
           // 处理OK数据，按班次分组
-          const dayShiftData = uniqueRows
+          const dayShiftData = baseRows
             .filter(row => row.result === 'OK' && getShift(row.datetime) === '白班')
             .reduce((acc, row) => {
               const date = row.datetime ? new Date(row.datetime).toISOString().split('T')[0] : today;
@@ -490,7 +582,7 @@ router.get('/api/barShiftOK', (req, res) => {
             .sort((a, b) => new Date(b.name) - new Date(a.name))
             .slice(0, 7);
 
-          const nightShiftData = uniqueRows
+          const nightShiftData = baseRows
             .filter(row => row.result === 'OK' && getShift(row.datetime) === '夜班')
             .reduce((acc, row) => {
               const date = row.datetime ? new Date(row.datetime).toISOString().split('T')[0] : today;
@@ -514,11 +606,16 @@ router.get('/api/barShiftOK', (req, res) => {
           allDates = allDates.slice(-7); // 只保留最近7天
           const dayMap = Object.fromEntries(dayShiftData.map(d => [d.name, d.value]));
           const nightMap = Object.fromEntries(nightShiftData.map(d => [d.name, d.value]));
-          const result = allDates.map(date => ({
+          let result = allDates.map(date => ({
             name: date,
             value1: dayMap[date] || 0,
             value2: nightMap[date] || 0
           }));
+
+          if (!result || result.length === 0) {
+            result = defaultBarShiftData();
+          }
+
           res.json(result);
         })
         .catch(error => {
@@ -574,8 +671,13 @@ router.get('/api/barShiftNG', (req, res) => {
           // 计算统计数据
           const today = new Date().toISOString().split('T')[0];
 
+          const isTodayOnly = shouldReturnTodayOnly(req);
+          const baseRows = isTodayOnly
+            ? uniqueRows.filter(row => row.datetime && new Date(row.datetime).toISOString().split('T')[0] === today)
+            : uniqueRows;
+
           // 处理NG数据，按班次分组
-          const dayShiftData = uniqueRows
+          const dayShiftData = baseRows
             .filter(row => row.result === 'NG' && getShift(row.datetime) === '白班')
             .reduce((acc, row) => {
               const date = row.datetime ? new Date(row.datetime).toISOString().split('T')[0] : today;
@@ -590,7 +692,7 @@ router.get('/api/barShiftNG', (req, res) => {
             .sort((a, b) => new Date(b.name) - new Date(a.name))
             .slice(0, 7);
 
-          const nightShiftData = uniqueRows
+          const nightShiftData = baseRows
             .filter(row => row.result === 'NG' && getShift(row.datetime) === '夜班')
             .reduce((acc, row) => {
               const date = row.datetime ? new Date(row.datetime).toISOString().split('T')[0] : today;
@@ -615,11 +717,16 @@ router.get('/api/barShiftNG', (req, res) => {
           allDates = allDates.slice(-7); // 只保留最近7天
           const dayMap = Object.fromEntries(dayShiftData.map(d => [d.name, d.value]));
           const nightMap = Object.fromEntries(nightShiftData.map(d => [d.name, d.value]));
-          const result = allDates.map(date => ({
+          let result = allDates.map(date => ({
             name: date,
             value1: dayMap[date] || 0,
             value2: nightMap[date] || 0
           }));
+
+          if (!result || result.length === 0) {
+            result = defaultBarShiftData();
+          }
+
           res.json(result);
         })
         .catch(error => {

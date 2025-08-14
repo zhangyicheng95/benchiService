@@ -419,14 +419,22 @@ router.get('/api/pieWEEK', (req, res) => {
               if (existing) {
                 existing.value++;
               } else {
-                acc.push({ name: defect, value: 1 });
+                acc.push({ 
+                  id: acc.length + 1, // 添加唯一ID字段
+                  name: defect, 
+                  value: 1 
+                });
               }
               return acc;
             }, []);
 
           // 兜底：若无数据，返回占位项避免前端/Power BI 报错
           if (data.length === 0) {
-            return res.json([{ name: '无数据', value: 0 }]);
+            return res.json([{ 
+              id: 1, 
+              name: '无数据', 
+              value: 0 
+            }]);
           }
 
           res.json(data);

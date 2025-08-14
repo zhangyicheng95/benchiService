@@ -425,13 +425,21 @@ router.get('/api/pieWEEK', (req, res) => {
               if (existing) {
                 existing.value++;
               } else {
-                acc.push({ name: defect, value: 1 });
+                acc.push({ 
+                  id: acc.length + 1, // 添加唯一ID字段
+                  name: defect, 
+                  value: 1 
+                });
               }
               return acc;
             }, []);
 
           if (!result || result.length === 0) {
-            result = [{ name: '未知缺陷', value: 0 }];
+            result = [{ 
+              id: 1, 
+              name: '未知缺陷', 
+              value: 0 
+            }];
           }
 
           res.json(result);
@@ -789,41 +797,3 @@ const PORT = 3000;
 app.listen(PORT, () => {
   console.log(`服务器运行在端口 ${PORT}`);
 });
-
-const mock = {
-  topNumber: [
-    {
-      title: '今日',
-      number: 57,
-    },
-    {
-      title: '近七日',
-      number: 1233,
-    },
-    {
-      title: '总计',
-      number: 562,
-      unit: '千',
-    },
-    {
-      title: '型号',
-      number: 'V206',
-    }
-  ],
-  bar: {
-    "OK": [{ name: '2025-02-22', value: 103 }, { name: '2025-02-23', value: 103 }, { name: '2025-02-24', value: 103 }, { name: '2025-02-25', value: 103 }, { name: '2025-02-26', value: 103 }, { name: '2025-02-27', value: 103 }, { name: '2025-02-28', value: 103 }],
-    "NG": [{ name: '2025-02-22', value: 163 }, { name: '2025-02-23', value: 103 }, { name: '2025-02-24', value: 103 }, { name: '2025-02-25', value: 103 }, { name: '2025-02-26', value: 103 }, { name: '2025-02-27', value: 103 }, { name: '2025-02-28', value: 103 }]
-  },
-  pie: {
-    all: [
-      { name: '缺陷1', value: 23 }, { name: '缺陷2', value: 27 }, { name: '缺陷3', value: 30 }, { name: '缺陷4', value: 33 }, { name: '缺陷5', value: 36 }, { name: '缺陷6', value: 39 }, { name: '缺陷7', value: 42 },
-      { name: '缺陷8', value: 45 }, { name: '缺陷9', value: 48 }, { name: '缺陷10', value: 51 }, { name: '缺陷11', value: 54 }, { name: '缺陷12', value: 57 }, { name: '缺陷13', value: 60 }, { name: '缺陷14', value: 63 },
-    ],
-    week: [
-      { name: '缺陷1', value: 53 }, { name: '缺陷2', value: 63 }, { name: '缺陷3', value: 73 }, { name: '缺陷4', value: 83 }, { name: '缺陷5', value: 103 }
-    ],
-  },
-  line: [
-    { name: '缺陷1', value: 53 }, { name: '缺陷2', value: 63 }, { name: '缺陷3', value: 73 }, { name: '缺陷4', value: 83 }, { name: '缺陷5', value: 103 }
-  ]
-};
